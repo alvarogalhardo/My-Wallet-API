@@ -2,7 +2,7 @@ import { db } from "../database/mywallet.js";
 import bcrypt from "bcrypt";
 import { v4 as uuid } from "uuid";
 import { userSchema } from "../models/userModel.js";
-
+import { ObjectId } from "mongodb";
 
 export async function signUpUser(req, res) {
   const user = req.body;
@@ -28,11 +28,22 @@ export async function signUpUser(req, res) {
 export async function logInUser(req, res) {
   const { email, password } = req.body;
   const user = await db.collection("users").findOne({ email });
-  if (user && bcrypt.compareSync(password, user.password)) {
-    const token = uuid();
-    await db.collection("sessions").insertOne({ userId: user._id, token });
-    res.status(200).send({name:user.name,token});
-  } else {
-    res.sendStatus(404);    
+  try {
+    const exists = await db
+      .collection("sessions")
+      .findOne({ userId: user._id });
+    if (exists) {
+      return res.status(200).send({ name: user.name, token: exists.token });
+    }
+    if (user && bcrypt.compareSync(password, user.password)) {
+      const token = uuid();
+      await db.collection("sessions").insertOne({ userId: user._id, token });
+      return res.status(200).send({ name: user.name, token });
+    } else {
+      return res.sendStatus(404);
+    }
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
   }
 }
